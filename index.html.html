@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Mermas PDV</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --azul:#185FA5;--azul-o:#0C447C;--azul-c:#E6F1FB;
+  --verde:#3B6D11;--verde-c:#EAF3DE;--verde-t:#27500A;
+  --rojo:#E24B4A;--rojo-c:#FCEBEB;--rojo-t:#791F1F;
+  --ambar:#EF9F27;--ambar-c:#FAEEDA;--ambar-t:#633806;
+  --morado:#6B3FA0;--morado-c:#F0EBF8;--morado-t:#3D1A6B;
+  --fondo:#f4f5f7;--borde:#dfe3e8;--gris:#5f6b76;
+  --txt:#1c2733;--blanco:#fff;--r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--fondo);color:var(--txt);min-height:100vh}
+.topbar{background:var(--blanco);border-bottom:1px solid var(--borde);position:sticky;top:0;z-index:50}
+.topbar-inner{max-width:960px;margin:0 auto;display:flex;align-items:center;padding:0 12px}
+.brand{font-size:16px;font-weight:700;color:var(--morado);padding:14px 8px;white-space:nowrap}
+.tabs{display:flex;flex:1;justify-content:flex-end}
+.tab{padding:14px 10px;font-size:13px;font-weight:600;color:var(--gris);border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;display:flex;align-items:center;gap:5px}
+.tab.active{color:var(--morado);border-bottom-color:var(--morado)}
+.dot{background:var(--rojo);color:white;font-size:11px;min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+.container{max-width:960px;margin:0 auto;padding:16px 12px 80px}
+.screen{display:none}.screen.active{display:block}
+h2{font-size:17px;font-weight:700;margin:18px 0 10px}h2:first-child{margin-top:0}
+.muted{color:var(--gris);font-size:13px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{padding:10px 16px;border-radius:24px;border:1.5px solid var(--borde);background:var(--blanco);font-size:14px;font-weight:600;cursor:pointer;color:var(--gris)}
+.chip.active{background:var(--morado);border-color:var(--morado);color:white}
+.chip.area.active{background:var(--morado-c);border-color:var(--morado);color:var(--morado-t)}
+.card{background:var(--blanco);border:1px solid var(--borde);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.card-pad{padding:14px}
+.btn{width:100%;padding:14px;border:none;border-radius:var(--r);font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-morado{background:var(--morado);color:white}.btn-morado:disabled{background:#c3ccd4;cursor:not-allowed}
+.btn-rojo{background:var(--rojo);color:white}
+.btn-verde{background:var(--verde);color:white}
+.btn-borde{background:var(--blanco);border:1.5px solid var(--borde);color:var(--txt)}
+.btn-sm{padding:9px 14px;font-size:13px;width:auto}
+.btn-rojo-b{background:var(--blanco);border:1.5px solid var(--rojo);color:var(--rojo-t)}
+
+/* búsqueda */
+.search-wrap{position:relative;margin-bottom:10px}
+.search-wrap input{width:100%;padding:10px 12px 10px 38px;border-radius:10px;border:1.5px solid var(--borde);font-size:14px;background:var(--blanco);color:var(--txt)}
+.search-wrap .ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--gris);pointer-events:none}
+
+/* filas de producto */
+.prow{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--fondo);flex-wrap:wrap}
+.prow:last-child{border-bottom:none}
+.pname{font-size:14px;flex:1;min-width:120px;font-weight:500}
+.prow-ctrl{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.qty{display:flex;align-items:center;gap:6px}
+.qbtn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--borde);background:rgba(255,255,255,0.7);font-size:20px;cursor:pointer;color:inherit;line-height:1}
+.qval{min-width:30px;text-align:center;font-size:16px;font-weight:700}
+.fmt-select{padding:7px 8px;border-radius:8px;border:1.5px solid var(--borde);font-size:13px;background:rgba(255,255,255,0.7);color:inherit;max-width:120px}
+.fmt-libre{padding:7px 8px;border-radius:8px;border:1.5px solid var(--ambar);font-size:13px;background:var(--ambar-c);color:var(--txt);width:100px;display:none}
+.fmt-libre.show{display:block}
+
+/* selector de motivo */
+.motivo-wrap{display:flex;align-items:center;gap:6px}
+.cod-select{padding:7px 8px;border-radius:8px;border:1.5px solid var(--borde);font-size:13px;background:var(--morado-c);color:var(--morado-t);font-weight:700;width:70px}
+.motivo-label{font-size:12px;color:var(--morado-t);background:var(--morado-c);border-radius:8px;padding:4px 8px;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* botón añadir */
+.btn-add{background:var(--morado);color:white;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-add:disabled{background:#c3ccd4;cursor:not-allowed}
+
+/* ── LIBRETA ── */
+.libreta{background:#FFFDF0;border:2px solid #E8D87A;border-radius:var(--r);margin-bottom:14px;overflow:hidden;box-shadow:2px 3px 8px rgba(0,0,0,0.08)}
+.libreta-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px dashed #D4C056;background:#FFFBE0}
+.libreta-title{font-size:15px;font-weight:700;color:#5D4A00;display:flex;align-items:center;gap:8px}
+.libreta-count{background:#E8D87A;color:#5D4A00;font-size:12px;font-weight:700;padding:2px 8px;border-radius:12px}
+.libreta-body{padding:0}
+.libreta-empty{padding:24px;text-align:center;color:#A89030;font-size:13px;font-style:italic}
+.libreta-row{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px dashed #EDE6A0;position:relative}
+.libreta-row:last-child{border-bottom:none}
+.libreta-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--morado);opacity:0.4}
+.lb-nombre{flex:1;font-size:13px;font-weight:600;min-width:0}
+.lb-det{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lb-chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;background:var(--morado-c);color:var(--morado-t)}
+.lb-qty{font-size:14px;font-weight:700;color:var(--morado);min-width:30px;text-align:center}
+.lb-del{background:none;border:none;color:#C0A000;cursor:pointer;font-size:16px;padding:4px;flex-shrink:0}
+.lb-area{font-size:11px;color:var(--gris)}
+
+/* cierre */
+.cierre-bar{background:linear-gradient(135deg,var(--morado),#4A1A8A);border-radius:var(--r);padding:16px;margin-bottom:14px;color:white;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cierre-info{flex:1}
+.cierre-info h3{font-size:15px;font-weight:700}
+.cierre-info p{font-size:12px;opacity:.85;margin-top:2px}
+.btn-cierre{background:white;color:var(--morado);border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+
+/* histórico */
+.hist-card{background:var(--blanco);border:1px solid var(--borde);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.hist-head{display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer}
+.hist-avatar{width:40px;height:40px;border-radius:50%;background:var(--morado-c);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.hist-info{flex:1;min-width:0}
+.hist-title{font-size:14px;font-weight:700}
+.hist-meta{font-size:12px;color:var(--gris);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.hist-body{padding:0 14px 14px;display:none}
+.hist-body.open{display:block}
+.chev{color:#aab4bd;font-size:18px}
+.badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px}
+.b-mo{background:var(--morado-c);color:var(--morado-t)}
+.b-v{background:var(--verde-c);color:var(--verde-t)}
+
+table.htable{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+table.htable th{text-align:left;padding:6px 8px;background:var(--fondo);font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--gris)}
+table.htable td{padding:7px 8px;border-bottom:1px solid var(--fondo)}
+table.htable tr:last-child td{border-bottom:none}
+.htable-area td{background:var(--fondo);font-weight:700;font-size:10px;text-transform:uppercase;color:var(--gris);padding:4px 8px}
+
+/* ajustes */
+.cfg-row{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.cfg-row label{font-size:13px;font-weight:600;color:var(--gris)}
+.cfg-row input,.cfg-row select{width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid var(--borde);font-size:14px;background:var(--blanco);color:var(--txt)}
+.lista-admin{margin-top:4px}
+.lrow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--fondo)}
+.lrow:last-child{border-bottom:none}.lrow .nom{flex:1;font-size:14px}
+.lrow .del{background:none;border:none;color:var(--rojo);font-size:18px;cursor:pointer;padding:6px}
+.add-row{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--fondo);flex-wrap:wrap}
+.add-row input,.add-row select{flex:1;min-width:80px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--borde);font-size:14px;background:var(--blanco);color:var(--txt)}
+.motivo-lrow{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--fondo)}
+.motivo-lrow:last-child{border-bottom:none}
+.motivo-cod{font-family:monospace;font-weight:700;color:var(--morado);font-size:15px;min-width:36px}
+.motivo-nom{flex:1;font-size:14px}
+.motivo-input{flex:1;padding:8px 10px;border-radius:8px;border:1.5px solid var(--borde);font-size:14px}
+.filtros{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.filtros select{flex:1;min-width:140px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--borde);font-size:14px;background:var(--blanco);color:var(--txt)}
+.refresh-bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.btn-refresh{background:var(--blanco);border:1.5px solid var(--borde);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;color:var(--gris)}
+.empty{text-align:center;padding:40px 20px;color:var(--gris)}
+.empty .ico{font-size:36px;display:block;margin-bottom:8px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+.overlay.show{display:flex}
+.modal{background:var(--blanco);border-radius:16px;padding:22px;max-width:440px;width:100%;max-height:85vh;overflow-y:auto}
+.modal h3{font-size:17px;margin-bottom:14px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--txt);color:white;padding:13px 22px;border-radius:12px;font-size:14px;font-weight:600;z-index:200;transition:transform .3s;max-width:90vw}
+.toast.show{transform:translateX(-50%) translateY(0)}.toast.error{background:var(--rojo-t)}
+.loader{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+select,input[type=text],input[type=url],input[type=email],input[type=time]{padding:11px 12px;border-radius:10px;border:1.5px solid var(--borde);font-size:14px;background:var(--blanco);color:var(--txt)}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand">📉 Mermas PDV</div>
+  <div class="tabs">
+    <button class="tab active" data-t="0" onclick="goTab(0)">📝 Registrar</button>
+    <button class="tab" data-t="1" onclick="goTab(1)">📚 Histórico <span class="dot" id="dot-hist" style="display:none">!</span></button>
+    <button class="tab" data-t="2" onclick="goTab(2)">⚙️</button>
+  </div>
+</div></div>
+
+<div class="container">
+
+<!-- ===== PANTALLA 0: REGISTRAR ===== -->
+<div class="screen active" id="s0">
+  <div class="cierre-bar">
+    <div class="cierre-info">
+      <h3>Jornada en curso</h3>
+      <p id="cierre-info-txt">Cierre automático configurado</p>
+    </div>
+    <button class="btn-cierre" onclick="confirmarCierre()">🔒 Cerrar jornada</button>
+  </div>
+
+  <h2>Punto de venta</h2>
+  <div class="chips" id="pv-chips"></div>
+  <h2>Área</h2>
+  <div class="chips" id="area-chips"></div>
+
+  <div class="search-wrap">
+    <span class="ico">🔍</span>
+    <input type="text" id="buscador" placeholder="Buscar producto en esta área…" oninput="renderProductos()">
+  </div>
+
+  <div class="card" id="prod-card">
+    <div class="empty" id="prod-empty">Cargando…</div>
+    <div id="prod-list"></div>
+  </div>
+
+  <!-- LIBRETA -->
+  <div class="libreta" id="libreta">
+    <div class="libreta-header">
+      <div class="libreta-title">📒 Mermas anotadas <span class="libreta-count" id="lb-count">0</span></div>
+      <button class="btn-rojo-b btn-sm btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="limpiarLibreta()" id="btn-limpiar" style="display:none">🗑 Limpiar</button>
+    </div>
+    <div id="libreta-body"><div class="libreta-empty">Aún no hay mermas anotadas hoy</div></div>
+  </div>
+</div>
+
+<!-- ===== PANTALLA 1: HISTÓRICO ===== -->
+<div class="screen" id="s1">
+  <div class="refresh-bar">
+    <h2 style="margin:0">Histórico de mermas</h2>
+    <button class="btn-refresh" onclick="cargarHistorico(true)">🔄 Actualizar</button>
+  </div>
+  <div class="filtros">
+    <select id="f-pv" onchange="renderHistorico()"><option value="">Todos los puntos de venta</option></select>
+    <select id="f-fecha" onchange="renderHistorico()"><option value="">Todas las fechas</option></select>
+  </div>
+  <div id="lista-historico"></div>
+</div>
+
+<!-- ===== PANTALLA 2: AJUSTES ===== -->
+<div class="screen" id="s2">
+  <h2>Conexión a la base de datos</h2>
+  <div class="card card-pad">
+    <div class="cfg-row"><label>URL del proyecto Supabase</label><input type="url" id="cfg-url" placeholder="https://xxxxx.supabase.co"></div>
+    <div class="cfg-row"><label>Clave anon (public)</label><input type="text" id="cfg-key" placeholder="eyJhbGciOi..."></div>
+    <button class="btn btn-morado" onclick="guardarConexion()" style="margin-bottom:8px">💾 Guardar y conectar</button>
+    <p class="muted" id="cfg-estado">Sin conectar</p>
+  </div>
+
+  <h2>Cierre automático</h2>
+  <div class="card card-pad">
+    <div class="cfg-row"><label>Hora de cierre automático diario</label><input type="time" id="cfg-hora-cierre" value="23:59" onchange="guardarHoraCierre()"></div>
+    <div class="cfg-row"><label>Correo destino (global o por defecto)</label><input type="email" id="cfg-email-global" placeholder="mermas@empresa.com" onchange="guardarEmailGlobal()"></div>
+    <p class="muted">Cada restaurante puede tener su propio correo configurado abajo.</p>
+  </div>
+
+  <h2>Puntos de venta</h2>
+  <div class="card">
+    <div class="lista-admin" id="admin-pvs"></div>
+    <div class="add-row">
+      <input type="text" id="nuevo-pv" placeholder="Nombre del restaurante">
+      <input type="email" id="nuevo-pv-email" placeholder="correo@restaurante.com">
+      <button class="btn btn-morado btn-sm" onclick="agregarPV()">+ Añadir</button>
+    </div>
+  </div>
+
+  <h2>Áreas</h2>
+  <div class="card">
+    <div class="lista-admin" id="admin-areas"></div>
+    <div class="add-row">
+      <input type="text" id="nueva-area" placeholder="Nombre del área">
+      <button class="btn btn-morado btn-sm" onclick="agregarArea()">+ Añadir</button>
+    </div>
+  </div>
+
+  <h2>Motivos de merma (01–11)</h2>
+  <div class="card">
+    <div class="lista-admin" id="admin-motivos"></div>
+  </div>
+
+  <h2>Catálogo de productos</h2>
+  <div class="card card-pad">
+    <p class="muted" style="margin-bottom:12px">Columnas Excel: <b>Producto, Area, Formatos</b> (opcionales: <b>Unidad, Color, ID_SAP, Codigo</b>).</p>
+    <input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="importarExcel(event)">
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-borde btn-sm" onclick="document.getElementById('excel-input').click()">📥 Importar Excel (añadir)</button>
+      <button class="btn btn-rojo-b btn-sm" onclick="reemplazarCatalogo()">🔄 Importar Excel (reemplazar)</button>
+    </div>
+    <p class="muted" style="margin-top:8px" id="prod-count"></p>
+  </div>
+</div>
+</div>
+
+<!-- Modal conexión -->
+<div class="overlay" id="overlay-conexion">
+  <div class="modal">
+    <h3>📉 Mermas PDV — Configuración</h3>
+    <p class="muted" style="margin-bottom:14px">Conecta con tu base de datos Supabase para empezar.</p>
+    <div class="cfg-row"><label>URL del proyecto</label><input type="url" id="m-url" placeholder="https://xxxxx.supabase.co"></div>
+    <div class="cfg-row"><label>Clave anon (public)</label><input type="text" id="m-key" placeholder="eyJhbGciOi..."></div>
+    <button class="btn btn-morado" onclick="conectarDesdeModal()">Conectar</button>
+  </div>
+</div>
+
+<!-- Modal confirmar cierre -->
+<div class="overlay" id="overlay-cierre">
+  <div class="modal">
+    <h3>🔒 Cerrar jornada</h3>
+    <p class="muted" style="margin-bottom:14px">Se generará el Excel con todas las mermas de hoy y se enviará por correo a <span id="cierre-email-preview" style="font-weight:700;color:var(--morado)"></span>. Esta acción no se puede deshacer.</p>
+    <p id="cierre-resumen" style="margin-bottom:16px;font-size:14px"></p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-borde" onclick="document.getElementById('overlay-cierre').classList.remove('show')">Cancelar</button>
+      <button class="btn btn-rojo" onclick="cerrarJornada()">🔒 Confirmar cierre</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let sb=null;
+let DB={pvs:[],areas:[],productos:[],motivos:{},historico:[]};
+let UI={pv:null,area:null,cant:{},fmt:{},fmtLibre:{},libreta:[],histAbiertos:new Set()};
+let cierreTimer=null;
+
+const FORMATOS_DEFAULT=['Unidad','Caja','Saco','Palet','Bolsa','Botella','Garrafa','Paquete','Rollo','Barril'];
+const COLORES={amarillo:{bg:'#FFF9C4',txt:'#5D4037'},verde:{bg:'#DCEDC8',txt:'#1B5E20'},azul:{bg:'#BBDEFB',txt:'#0D47A1'},rojo:{bg:'#FFCDD2',txt:'#7F0000'},naranja:{bg:'#FFE0B2',txt:'#7f3100'},morado:{bg:'#E1BEE7',txt:'#4A148C'},rosa:{bg:'#FCE4EC',txt:'#880E4F'},negro:{bg:'#263238',txt:'#ECEFF1'},gris:{bg:'#ECEFF1',txt:'#37474F'}};
+function normColor(s){const m={amarillo:'amarillo',verde:'verde',azul:'azul',rojo:'rojo',naranja:'naranja',morado:'morado',rosa:'rosa',negro:'negro',gris:'gris'};return m[String(s||'').toLowerCase().trim()]||null}
+function colorStyle(c){const col=COLORES[c];return col?`background:${col.bg};color:${col.txt};`:'';}
+
+function $(id){return document.getElementById(id)}
+function toast(msg,err){const t=$('toast');t.textContent=msg;t.classList.toggle('error',!!err);t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fechaES(iso){const d=new Date(iso);return d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}
+function hoyStr(){return new Date().toISOString().slice(0,10)}
+
+// ---------- CONEXIÓN ----------
+function initConexion(){
+  const url=localStorage.getItem('sb_url'),key=localStorage.getItem('sb_key');
+  if(url&&key){sb=supabase.createClient(url,key);$('cfg-url').value=url;$('cfg-key').value=key;$('cfg-estado').textContent='✅ Conectado a '+url;cargarTodo()}
+  else{$('overlay-conexion').classList.add('show')}
+  // restaurar libreta del día
+  const lb=localStorage.getItem('mermas_libreta_'+hoyStr());
+  if(lb)try{UI.libreta=JSON.parse(lb)}catch(e){}
+  // hora cierre
+  const hc=localStorage.getItem('hora_cierre')||'23:59';
+  $('cfg-hora-cierre').value=hc;
+  const eg=localStorage.getItem('email_global')||'';
+  $('cfg-email-global').value=eg;
+  programarCierre();
+  $('cierre-info-txt').textContent='Cierre automático a las '+hc;
+}
+function conectar(url,key){
+  if(!url||!key){toast('Completa URL y clave',true);return}
+  localStorage.setItem('sb_url',url.trim());localStorage.setItem('sb_key',key.trim());
+  sb=supabase.createClient(url.trim(),key.trim());
+  $('overlay-conexion').classList.remove('show');
+  $('cfg-url').value=url.trim();$('cfg-key').value=key.trim();
+  $('cfg-estado').textContent='✅ Conectado a '+url.trim();
+  toast('Conectado');cargarTodo();
+}
+function conectarDesdeModal(){conectar($('m-url').value,$('m-key').value)}
+function guardarConexion(){conectar($('cfg-url').value,$('cfg-key').value)}
+function guardarHoraCierre(){localStorage.setItem('hora_cierre',$('cfg-hora-cierre').value);programarCierre();$('cierre-info-txt').textContent='Cierre automático a las '+$('cfg-hora-cierre').value;toast('Hora de cierre guardada')}
+function guardarEmailGlobal(){localStorage.setItem('email_global',$('cfg-email-global').value);toast('Correo guardado')}
+
+function programarCierre(){
+  clearTimeout(cierreTimer);
+  const hc=(localStorage.getItem('hora_cierre')||'23:59').split(':');
+  const ahora=new Date();
+  const objetivo=new Date();
+  objetivo.setHours(parseInt(hc[0]),parseInt(hc[1]),0,0);
+  if(objetivo<=ahora)objetivo.setDate(objetivo.getDate()+1);
+  const ms=objetivo-ahora;
+  cierreTimer=setTimeout(()=>{if(UI.libreta.length)cerrarJornada(true)},ms);
+}
+
+// ---------- CARGA ----------
+async function cargarTodo(){await Promise.all([cargarCatalogo(),cargarHistorico(),cargarMotivos()])}
+async function cargarCatalogo(){
+  if(!sb)return;
+  try{
+    const[pvs,areas,prods]=await Promise.all([
+      sb.from('mermas_pvs').select('*').eq('activo',true).order('nombre'),
+      sb.from('mermas_areas').select('*').order('nombre'),
+      sb.from('mermas_productos').select('*').eq('activo',true).order('nombre'),
+    ]);
+    if(pvs.error||areas.error||prods.error)throw(pvs.error||areas.error||prods.error);
+    DB.pvs=pvs.data;DB.areas=areas.data;DB.productos=prods.data;
+    if(!UI.pv&&DB.pvs.length)UI.pv=DB.pvs[0].id;
+    if(!UI.area&&DB.areas.length)UI.area=DB.areas[0].nombre;
+    renderRegistro();renderAdmin();
+  }catch(e){toast('Error cargando: '+(e.message||e),true)}
+}
+async function cargarHistorico(manual){
+  if(!sb)return;
+  try{
+    const{data,error}=await sb.from('mermas_historico').select('*').order('creado',{ascending:false}).limit(200);
+    if(error)throw error;
+    DB.historico=data||[];renderHistorico();
+    if(manual)toast('Actualizado');
+  }catch(e){if(manual)toast('Error: '+(e.message||e),true)}
+}
+async function cargarMotivos(){
+  if(!sb)return;
+  try{
+    const{data,error}=await sb.from('mermas_motivos').select('*').order('codigo');
+    if(error)throw error;
+    DB.motivos={};
+    (data||[]).forEach(m=>{DB.motivos[m.codigo]=m.descripcion});
+    renderAdmin();renderProductos();
+  }catch(e){}
+}
+
+// ---------- NAV ----------
+function goTab(n){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.t==n));
+  document.querySelectorAll('.screen').forEach((s,i)=>s.classList.toggle('active',i===n));
+  if(n===1)cargarHistorico();
+  if(n===0){renderRegistro();renderLibreta()}
+}
+
+// ---------- REGISTRO ----------
+function getFormatos(prod){return(prod.formatos&&prod.formatos.length)?prod.formatos:FORMATOS_DEFAULT}
+
+function renderRegistro(){
+  $('pv-chips').innerHTML=DB.pvs.map(pv=>
+    `<button class="chip ${pv.id===UI.pv?'active':''}" onclick="UI.pv='${pv.id}';renderRegistro()">${esc(pv.nombre)}</button>`
+  ).join('')||'<p class="muted">Añade puntos de venta en ⚙️</p>';
+  $('area-chips').innerHTML=DB.areas.map(a=>
+    `<button class="chip area ${a.nombre===UI.area?'active':''}" onclick="UI.area='${esc(a.nombre)}';$('buscador').value='';renderProductos()">${esc(a.nombre)}</button>`
+  ).join('')||'<p class="muted">Añade áreas en ⚙️</p>';
+  renderProductos();
+  renderLibreta();
+}
+
+function renderProductos(){
+  const busq=($('buscador')?.value||'').toLowerCase().trim();
+  let prods=DB.productos.filter(p=>p.area===UI.area);
+  if(busq)prods=prods.filter(p=>p.nombre.toLowerCase().includes(busq)||(p.id_sap||'').toLowerCase().includes(busq)||(p.codigo||'').toLowerCase().includes(busq));
+  $('prod-empty').style.display=prods.length?'none':'block';
+  $('prod-empty').textContent=busq?'Sin resultados para "'+busq+'"':(DB.productos.length?'No hay productos en esta área':'Importa tu catálogo en ⚙️');
+
+  const codsOpts=Object.keys(DB.motivos).sort().map(c=>`<option value="${c}">${c}</option>`).join('')||'<option value="">Sin motivos</option>';
+
+  $('prod-list').innerHTML=prods.map(p=>{
+    const k=UI.pv+'|'+p.id;
+    const q=UI.cant[k]||0;
+    const fmts=getFormatos(p);
+    const fmtVal=UI.fmt[k]||fmts[0];
+    const isLibre=fmtVal==='__libre__';
+    const selVal=isLibre?'__libre__':fmtVal;
+    const options=fmts.map(f=>`<option value="${esc(f)}" ${selVal===f?'selected':''}>${esc(f)}</option>`).join('');
+    const col=normColor(p.color);
+    const st=col?colorStyle(col):'';
+    const codActual=UI.codMotivo?.[k]||'';
+    const motivoNombre=codActual&&DB.motivos[codActual]?DB.motivos[codActual]:'';
+    return `<div class="prow" style="${st}">
+      <div style="flex:1;min-width:120px">
+        <div class="pname">${esc(p.nombre)}</div>
+        ${p.id_sap||p.codigo?`<div style="font-size:11px;color:var(--gris);margin-top:2px">${p.id_sap?'SAP: '+esc(p.id_sap):''} ${p.codigo?'· Cód: '+esc(p.codigo):''}</div>`:''}
+      </div>
+      <div class="prow-ctrl">
+        <div class="motivo-wrap">
+          <select class="cod-select" id="cod_${k}" onchange="cambCod('${k}',this.value)">
+            <option value="">--</option>
+            ${codsOpts}
+          </select>
+          ${motivoNombre?`<span class="motivo-label" title="${esc(motivoNombre)}">${esc(motivoNombre)}</span>`:''}
+        </div>
+        <select class="fmt-select" id="fs_${k}" onchange="cambFmt('${k}',this.value)" style="${st?'background:rgba(255,255,255,0.5)':''}">
+          ${options}
+          <option value="__libre__" ${isLibre?'selected':''}>✏️ Otro…</option>
+        </select>
+        <input class="fmt-libre ${isLibre?'show':''}" id="fl_${k}" type="text" placeholder="Formato" value="${isLibre?esc(UI.fmtLibre?.[k]||''):''}" oninput="if(!UI.fmtLibre)UI.fmtLibre={};UI.fmtLibre['${k}']=this.value">
+        <div class="qty">
+          <button class="qbtn" onclick="camb('${k}',-1)">−</button>
+          <span class="qval" id="q_${k}">${q}</span>
+          <button class="qbtn" onclick="camb('${k}',1)">+</button>
+        </div>
+        <button class="btn-add" onclick="añadirALibreta('${k}','${esc(p.id)}','${esc(p.nombre)}','${esc(p.area)}','${esc(p.id_sap||'')}','${esc(p.codigo||'')}')" ${q===0?'disabled':''} id="add_${k}">+ Anotar</button>
+      </div>
+    </div>`;
+  }).join('');
+  // restaurar selects de cod
+  prods.forEach(p=>{
+    const k=UI.pv+'|'+p.id;
+    const sel=$('cod_'+k);
+    if(sel&&UI.codMotivo?.[k])sel.value=UI.codMotivo[k];
+  });
+}
+
+function cambFmt(k,val){
+  if(!UI.fmt)UI.fmt={};UI.fmt[k]=val;
+  const libre=$('fl_'+k);
+  if(libre)libre.classList.toggle('show',val==='__libre__');
+}
+function cambCod(k,val){
+  if(!UI.codMotivo)UI.codMotivo={};
+  UI.codMotivo[k]=val;
+  renderProductos();
+}
+function camb(k,d){
+  if(!UI.cant)UI.cant={};
+  UI.cant[k]=Math.max(0,(UI.cant[k]||0)+d);
+  const el=$('q_'+k);if(el)el.textContent=UI.cant[k];
+  const btn=$('add_'+k);if(btn)btn.disabled=UI.cant[k]===0;
+}
+
+function añadirALibreta(k,prodId,nombre,area,idSap,codigo){
+  const q=UI.cant[k]||0;if(q<=0)return;
+  const fmts=DB.productos.find(p=>p.id===prodId)?getFormatos(DB.productos.find(p=>p.id===prodId)):FORMATOS_DEFAULT;
+  const fmtVal=(UI.fmt?.[k])||fmts[0];
+  const fmt=fmtVal==='__libre__'?(UI.fmtLibre?.[k]||'').trim()||fmts[0]:fmtVal;
+  const codMotivo=(UI.codMotivo?.[k])||'';
+  const motivoDesc=codMotivo&&DB.motivos[codMotivo]?DB.motivos[codMotivo]:'';
+  const pv=DB.pvs.find(p=>p.id===UI.pv);
+  UI.libreta.push({
+    id:Date.now()+'_'+Math.random().toString(36).slice(2),
+    pvId:UI.pv,pvNombre:pv?.nombre||'',
+    prodId,nombre,area,idSap,codigo,
+    cantidad:q,formato:fmt,
+    codMotivo,motivoDesc,
+    hora:new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})
+  });
+  // reset
+  UI.cant[k]=0;
+  if(UI.codMotivo)UI.codMotivo[k]='';
+  const el=$('q_'+k);if(el)el.textContent=0;
+  // guardar en localStorage
+  localStorage.setItem('mermas_libreta_'+hoyStr(),JSON.stringify(UI.libreta));
+  renderLibreta();renderProductos();
+  toast('✅ Merma anotada');
+}
+
+function renderLibreta(){
+  const body=$('libreta-body');
+  const count=$('lb-count');
+  count.textContent=UI.libreta.length;
+  if(!UI.libreta.length){
+    body.innerHTML='<div class="libreta-empty">Aún no hay mermas anotadas hoy</div>';
+    return;
+  }
+  body.innerHTML=UI.libreta.map((it,i)=>`
+    <div class="libreta-row">
+      <div style="flex:1;min-width:0">
+        <div class="lb-nombre">${esc(it.nombre)}</div>
+        <div class="lb-det">
+          <span class="lb-area">${esc(it.area)}</span>
+          <span class="lb-chip">📦 ${esc(it.formato)}</span>
+          ${it.codMotivo?`<span class="lb-chip" style="background:#EDE7F6;color:#4A148C">${esc(it.codMotivo)} · ${esc(it.motivoDesc)}</span>`:''}
+          <span style="font-size:11px;color:var(--gris)">${it.hora}</span>
+        </div>
+      </div>
+      <span class="lb-qty">${it.cantidad}</span>
+      <button class="lb-del" onclick="borrarDeLibreta(${i})" title="Eliminar">✕</button>
+    </div>`).join('');
+}
+
+function borrarDeLibreta(i){
+  UI.libreta.splice(i,1);
+  localStorage.setItem('mermas_libreta_'+hoyStr(),JSON.stringify(UI.libreta));
+  renderLibreta();
+}
+function limpiarLibreta(){
+  if(!confirm('¿Borrar todas las mermas anotadas?'))return;
+  UI.libreta=[];
+  localStorage.removeItem('mermas_libreta_'+hoyStr());
+  renderLibreta();
+}
+
+// ---------- CIERRE DE JORNADA ----------
+function confirmarCierre(){
+  if(!UI.libreta.length){toast('No hay mermas anotadas hoy',true);return}
+  const pv=DB.pvs.find(p=>p.id===UI.pv);
+  const email=pv?.email||localStorage.getItem('email_global')||'(sin correo configurado)';
+  $('cierre-email-preview').textContent=email;
+  $('cierre-resumen').textContent=`Se enviarán ${UI.libreta.length} línea(s) de merma del ${new Date().toLocaleDateString('es-ES')} de ${pv?.nombre||'todos los PDV'}.`;
+  $('overlay-cierre').classList.add('show');
+}
+
+async function cerrarJornada(automatico=false){
+  $('overlay-cierre').classList.remove('show');
+  if(!UI.libreta.length){if(!automatico)toast('No hay mermas que cerrar',true);return}
+  const fecha=hoyStr();
+  const pv=DB.pvs.find(p=>p.id===UI.pv);
+  const email=pv?.email||localStorage.getItem('email_global')||'';
+
+  // Guardar en Supabase — Power Automate detectará esta inserción y enviará el correo con el Excel
+  try{
+    if(sb){
+      const{error}=await sb.from('mermas_historico').insert({
+        pv_id:UI.pv,pv_nombre:pv?.nombre||'',
+        fecha,items:UI.libreta,
+        email_enviado:email
+      });
+      if(error)throw error;
+    }
+  }catch(e){toast('Error guardando: '+(e.message||e),true);return}
+
+  // Generar y descargar Excel localmente como respaldo
+  generarExcelLocal(UI.libreta, pv?.nombre||'PDV', fecha);
+
+  // Limpiar libreta
+  UI.libreta=[];
+  localStorage.removeItem('mermas_libreta_'+fecha);
+  renderLibreta();
+  cargarHistorico();
+  toast(automatico?'⏰ Jornada cerrada — Excel enviado por Power Automate':'✅ Jornada cerrada — Excel enviado por correo');
+  programarCierre();
+}
+
+function generarExcelLocal(items, pvNombre, fecha){
+  const wb=XLSX.utils.book_new();
+  const wsData=[
+    [pvNombre+' — Registro de Mermas — '+fecha],
+    [],
+    ['ID SAP','Código Producto','Producto','Área','Cantidad','Formato','Código Motivo','Motivo'],
+    ...items.map(it=>[it.idSap||'',it.codigo||'',it.nombre,it.area,it.cantidad,it.formato,it.codMotivo||'',it.motivoDesc||''])
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+  ws['!cols']=[{wch:14},{wch:16},{wch:38},{wch:18},{wch:10},{wch:14},{wch:14},{wch:28}];
+  XLSX.utils.book_append_sheet(wb,ws,'Mermas');
+  const b64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+  const blob=new Blob([Uint8Array.from(atob(b64),c=>c.charCodeAt(0))],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`Mermas_${pvNombre.replace(/\s+/g,'_')}_${fecha}.xlsx`;
+  a.click();URL.revokeObjectURL(url);
+}
+
+// ---------- HISTÓRICO ----------
+function renderHistorico(){
+  const fpv=$('f-pv'),vp=fpv.value;
+  const pvsU=[...new Map(DB.historico.map(h=>[h.pv_id,h.pv_nombre])).entries()];
+  fpv.innerHTML='<option value="">Todos los puntos de venta</option>'+pvsU.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join('');
+  fpv.value=vp;
+
+  const ffec=$('f-fecha'),vf=ffec.value;
+  const fechasU=[...new Set(DB.historico.map(h=>h.fecha||h.creado?.slice(0,10)))].filter(Boolean).sort().reverse();
+  ffec.innerHTML='<option value="">Todas las fechas</option>'+fechasU.map(f=>`<option value="${f}">${f}</option>`).join('');
+  ffec.value=vf;
+
+  let hist=DB.historico;
+  if(fpv.value)hist=hist.filter(h=>h.pv_id===fpv.value);
+  if(ffec.value)hist=hist.filter(h=>(h.fecha||h.creado?.slice(0,10))===ffec.value);
+
+  const L=$('lista-historico');
+  if(!hist.length){L.innerHTML='<div class="empty"><span class="ico">📂</span>No hay registros aún</div>';return}
+
+  L.innerHTML=hist.map(h=>{
+    const open=UI.histAbiertos.has(h.id);
+    const items=h.items||[];
+    const filas=items.map(it=>`<tr>
+      <td>${esc(it.idSap||'—')}</td>
+      <td>${esc(it.codigo||'—')}</td>
+      <td>${esc(it.nombre)}</td>
+      <td>${esc(it.area)}</td>
+      <td style="text-align:center;font-weight:700">${it.cantidad}</td>
+      <td>${esc(it.formato)}</td>
+      <td style="text-align:center">${esc(it.codMotivo||'—')}</td>
+      <td>${esc(it.motivoDesc||'—')}</td>
+    </tr>`).join('');
+    const fd=h.fecha||h.creado?.slice(0,10)||'';
+    return `<div class="hist-card">
+      <div class="hist-head" onclick="toggleHist('${h.id}')">
+        <div class="hist-avatar">📉</div>
+        <div class="hist-info">
+          <div class="hist-title">${esc(h.pv_nombre)} <span style="font-family:monospace;color:var(--morado);font-size:12px">${fd}</span></div>
+          <div class="hist-meta"><span class="badge b-mo">${items.length} líneas</span>${h.email_enviado?`<span style="font-size:11px;color:var(--gris)">📧 ${esc(h.email_enviado)}</span>`:''}</div>
+        </div>
+        <span class="chev">${open?'▲':'▼'}</span>
+      </div>
+      <div class="hist-body ${open?'open':''}" id="hbody_${h.id}">
+        <div style="overflow-x:auto">
+          <table class="htable">
+            <thead><tr><th>ID SAP</th><th>Cód. Prod.</th><th>Producto</th><th>Área</th><th style="text-align:center">Cant.</th><th>Formato</th><th style="text-align:center">Motivo</th><th>Descripción</th></tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-borde btn-sm" onclick="reexportarExcel('${h.id}')">📥 Descargar Excel</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleHist(id){UI.histAbiertos.has(id)?UI.histAbiertos.delete(id):UI.histAbiertos.add(id);renderHistorico()}
+
+function reexportarExcel(id){
+  const h=DB.historico.find(x=>x.id===id);if(!h)return;
+  const items=h.items||[];
+  const fd=h.fecha||h.creado?.slice(0,10)||'';
+  const wb=XLSX.utils.book_new();
+  const wsData=[
+    [h.pv_nombre+' — Registro de Mermas — '+fd],
+    [],
+    ['ID SAP','Código Producto','Producto','Área','Cantidad','Formato','Código Motivo','Motivo'],
+    ...items.map(it=>[it.idSap||'',it.codigo||'',it.nombre,it.area,it.cantidad,it.formato,it.codMotivo||'',it.motivoDesc||''])
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+  ws['!cols']=[{wch:14},{wch:16},{wch:38},{wch:18},{wch:10},{wch:14},{wch:14},{wch:28}];
+  XLSX.utils.book_append_sheet(wb,ws,'Mermas');
+  const b64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+  const blob=new Blob([Uint8Array.from(atob(b64),c=>c.charCodeAt(0))],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`Mermas_${h.pv_nombre.replace(/\s+/g,'_')}_${fd}.xlsx`;a.click();URL.revokeObjectURL(url);
+}
+
+// ---------- ADMIN ----------
+function renderAdmin(){
+  $('admin-pvs').innerHTML=DB.pvs.map(pv=>
+    `<div class="lrow"><span class="nom">🏪 ${esc(pv.nombre)} <span class="muted">· ${esc(pv.email||'sin correo')}</span></span><button class="del" onclick="borrarPV('${pv.id}')">🗑️</button></div>`
+  ).join('')||'<div class="lrow"><span class="nom muted">Sin puntos de venta</span></div>';
+
+  $('admin-areas').innerHTML=DB.areas.map(a=>
+    `<div class="lrow"><span class="nom">📍 ${esc(a.nombre)}</span><button class="del" onclick="borrarArea('${a.id}','${esc(a.nombre)}')">🗑️</button></div>`
+  ).join('')||'<div class="lrow"><span class="nom muted">Sin áreas</span></div>';
+
+  const mots=Array.from({length:11},(_,i)=>String(i+1).padStart(2,'0'));
+  $('admin-motivos').innerHTML=mots.map(cod=>{
+    const desc=DB.motivos[cod]||'';
+    return `<div class="motivo-lrow">
+      <span class="motivo-cod">${cod}</span>
+      <input class="motivo-input" type="text" value="${esc(desc)}" placeholder="Descripción del motivo ${cod}" onblur="guardarMotivo('${cod}',this.value)">
+    </div>`;
+  }).join('');
+
+  $('prod-count').textContent=DB.productos.length+' productos en el catálogo';
+}
+
+async function guardarMotivo(cod,desc){
+  if(!sb)return;
+  desc=desc.trim();
+  try{
+    const{data}=await sb.from('mermas_motivos').select('id').eq('codigo',cod).single();
+    if(data){await sb.from('mermas_motivos').update({descripcion:desc}).eq('codigo',cod)}
+    else{await sb.from('mermas_motivos').insert({codigo:cod,descripcion:desc})}
+    DB.motivos[cod]=desc;
+    renderProductos();
+  }catch(e){toast('Error guardando motivo',true)}
+}
+
+async function agregarPV(){
+  const n=$('nuevo-pv').value.trim(),email=$('nuevo-pv-email').value.trim();
+  if(!n||!sb)return;
+  const{error}=await sb.from('mermas_pvs').insert({nombre:n,email,activo:true});
+  if(error)return toast('Error: '+error.message,true);
+  $('nuevo-pv').value='';$('nuevo-pv-email').value='';toast('Punto de venta añadido');cargarCatalogo();
+}
+async function borrarPV(id){
+  if(!confirm('¿Desactivar?'))return;
+  await sb.from('mermas_pvs').update({activo:false}).eq('id',id);
+  if(UI.pv===id)UI.pv=null;cargarCatalogo();
+}
+async function agregarArea(){
+  const n=$('nueva-area').value.trim();if(!n||!sb)return;
+  const{error}=await sb.from('mermas_areas').insert({nombre:n});
+  if(error)return toast('Error: '+error.message,true);
+  $('nueva-area').value='';toast('Área añadida');cargarCatalogo();
+}
+async function borrarArea(id,nombre){
+  if(!confirm('¿Borrar área "'+nombre+'"?'))return;
+  await sb.from('mermas_areas').delete().eq('id',id);
+  if(UI.area===nombre)UI.area=null;cargarCatalogo();
+}
+
+// ---------- EXCEL ----------
+function reemplazarCatalogo(){
+  if(!confirm('¿Reemplazar todo el catálogo?'))return;
+  UI.modoReemplazo=true;$('excel-input').click();
+}
+async function importarExcel(ev){
+  const file=ev.target.files[0];if(!file||!sb)return;ev.target.value='';
+  const reemplazar=UI.modoReemplazo;UI.modoReemplazo=false;
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf);
+    const hoja=wb.Sheets[wb.SheetNames[0]];
+    const filas=XLSX.utils.sheet_to_json(hoja,{defval:''});
+    if(!filas.length)return toast('Excel vacío',true);
+    const norm=s=>String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+    const claves=Object.keys(filas[0]);
+    const cProd=claves.find(k=>['producto','nombre','articulo','descripcion','referencia'].includes(norm(k)));
+    const cUni=claves.find(k=>['unidad','ud','medida'].includes(norm(k)));
+    const cArea=claves.find(k=>['area','zona','seccion','departamento','categoria'].includes(norm(k)));
+    const cFmts=claves.find(k=>['formatos','formatos_disponibles','opciones','formato'].includes(norm(k)));
+    const cColor=claves.find(k=>['color','colour','color_fondo','fondo'].includes(norm(k)));
+    const cSap=claves.find(k=>['id_sap','sap','id sap','idsap','codigo sap'].includes(norm(k)));
+    const cCod=claves.find(k=>['codigo','código','cod','code'].includes(norm(k)));
+    if(!cProd)return toast('No encuentro columna Producto',true);
+    if(!cArea)return toast('No encuentro columna Area',true);
+    const nuevos=filas.filter(f=>String(f[cProd]).trim()).map(f=>{
+      const unidad=(cUni&&String(f[cUni]).trim()&&String(f[cUni]).trim()!=='nan')?String(f[cUni]).trim():'ud';
+      let formatos=null;
+      if(cFmts&&String(f[cFmts]).trim()&&String(f[cFmts]).trim()!=='nan')formatos=String(f[cFmts]).split(',').map(x=>x.trim()).filter(Boolean);
+      if(!formatos||!formatos.length)formatos=[unidad];
+      const color=normColor(cColor?String(f[cColor]).trim():'')||null;
+      const id_sap=cSap?String(f[cSap]).trim()||null:null;
+      const codigo=cCod?String(f[cCod]).trim()||null:null;
+      return{nombre:String(f[cProd]).trim(),unidad:formatos[0],area:String(f[cArea]).trim(),formatos,color,id_sap,codigo};
+    });
+    if(reemplazar){await sb.from('mermas_productos').update({activo:false}).eq('activo',true)}
+    for(let i=0;i<nuevos.length;i+=100){const{error}=await sb.from('mermas_productos').insert(nuevos.slice(i,i+100));if(error)throw error}
+    const areasExcel=[...new Set(nuevos.map(n=>n.area))];
+    const faltan=areasExcel.filter(a=>!DB.areas.some(x=>x.nombre===a));
+    if(faltan.length)await sb.from('mermas_areas').insert(faltan.map(nombre=>({nombre})));
+    toast(`✅ ${nuevos.length} productos importados`+(faltan.length?` (+${faltan.length} áreas)`:''));
+    cargarCatalogo();
+  }catch(e){toast('Error: '+(e.message||e),true)}
+}
+
+initConexion();
+</script>
+</body>
+</html>
