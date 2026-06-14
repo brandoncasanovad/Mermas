@@ -356,7 +356,9 @@ async function cargarCatalogo(){
       sb.from('mermas_productos').select('*').eq('activo',true).order('nombre'),
     ]);
     if(pvs.error||areas.error||prods.error)throw(pvs.error||areas.error||prods.error);
-    DB.pvs=pvs.data;DB.areas=areas.data;DB.productos=prods.data;
+    DB.pvs=pvs.data;DB.areas=areas.data;DB.todosProductos=prods.data;
+    // filtrar productos del PDV seleccionado
+    DB.productos=DB.todosProductos.filter(p=>!p.pv_id||p.pv_id===UI.pv);
     if(!UI.pv&&DB.pvs.length)UI.pv=DB.pvs[0].id;
     if(!UI.area&&DB.areas.length)UI.area=DB.areas[0].nombre;
     renderRegistro();renderAdmin();
@@ -393,9 +395,19 @@ function goTab(n){
 // ---------- REGISTRO ----------
 function getFormatos(prod){return(prod.formatos&&prod.formatos.length)?prod.formatos:FORMATOS_DEFAULT}
 
+function seleccionarPV(id){
+  UI.pv=id;
+  // refiltar productos para este PDV
+  if(DB.todosProductos){
+    DB.productos=DB.todosProductos.filter(p=>!p.pv_id||p.pv_id===id);
+  }
+  if($('buscador'))$('buscador').value='';
+  renderRegistro();
+}
+
 function renderRegistro(){
   $('pv-chips').innerHTML=DB.pvs.map(pv=>
-    `<button class="chip ${pv.id===UI.pv?'active':''}" onclick="UI.pv='${pv.id}';renderRegistro()">${esc(pv.nombre)}</button>`
+    `<button class="chip ${pv.id===UI.pv?'active':''}" onclick="UI.pv='${pv.id}';seleccionarPV('${pv.id}')">${esc(pv.nombre)}</button>`
   ).join('')||'<p class="muted">Añade puntos de venta en ⚙️</p>';
   $('area-chips').innerHTML=DB.areas.map(a=>
     `<button class="chip area ${a.nombre===UI.area?'active':''}" onclick="UI.area='${esc(a.nombre)}';$('buscador').value='';renderProductos()">${esc(a.nombre)}</button>`
@@ -406,7 +418,7 @@ function renderRegistro(){
 
 function renderProductos(){
   const busq=($('buscador')?.value||'').toLowerCase().trim();
-  let prods=DB.productos.filter(p=>p.area===UI.area);
+  let prods=DB.productos.filter(p=>p.area===UI.area&&(!p.pv_id||p.pv_id===UI.pv));
   if(busq)prods=prods.filter(p=>p.nombre.toLowerCase().includes(busq)||(p.id_sap||'').toLowerCase().includes(busq)||(p.codigo||'').toLowerCase().includes(busq));
   $('prod-empty').style.display=prods.length?'none':'block';
   $('prod-empty').textContent=busq?'Sin resultados para "'+busq+'"':(DB.productos.length?'No hay productos en esta área':'Importa tu catálogo en ⚙️');
@@ -760,8 +772,13 @@ async function importarExcel(ev){
     const cColor=claves.find(k=>['color','colour','color_fondo','fondo'].includes(norm(k)));
     const cSap=claves.find(k=>['id_sap','sap','id sap','idsap','codigo sap'].includes(norm(k)));
     const cCod=claves.find(k=>['codigo','código','cod','code'].includes(norm(k)));
+    const cRest=claves.find(k=>['restaurante','restaurante','restaurant','pventa','punto de venta','pdv'].includes(norm(k)));
     if(!cProd)return toast('No encuentro columna Producto',true);
     if(!cArea)return toast('No encuentro columna Area',true);
+
+    // construir mapa nombre→id de pvs
+    const pvMap={};DB.pvs.forEach(p=>{pvMap[p.nombre.toLowerCase().trim()]=p.id});
+
     const nuevos=filas.filter(f=>String(f[cProd]).trim()).map(f=>{
       const unidad=(cUni&&String(f[cUni]).trim()&&String(f[cUni]).trim()!=='nan')?String(f[cUni]).trim():'ud';
       let formatos=null;
@@ -770,14 +787,27 @@ async function importarExcel(ev){
       const color=normColor(cColor?String(f[cColor]).trim():'')||null;
       const id_sap=cSap?String(f[cSap]).trim()||null:null;
       const codigo=cCod?String(f[cCod]).trim()||null:null;
-      return{nombre:String(f[cProd]).trim(),unidad:formatos[0],area:String(f[cArea]).trim(),formatos,color,id_sap,codigo};
+      // vincular restaurante
+      let pv_id=null;
+      if(cRest){const rn=String(f[cRest]).toLowerCase().trim();pv_id=pvMap[rn]||null;}
+      return{nombre:String(f[cProd]).trim(),unidad:formatos[0],area:String(f[cArea]).trim(),formatos,color,id_sap,codigo,pv_id};
     });
-    if(reemplazar){await sb.from('mermas_productos').update({activo:false}).eq('activo',true)}
+
+    // si reemplazar: solo desactivar los del mismo PDV si hay columna restaurante, si no todos
+    if(reemplazar){
+      const pvIds=[...new Set(nuevos.map(n=>n.pv_id).filter(Boolean))];
+      if(pvIds.length){
+        for(const pid of pvIds)await sb.from('mermas_productos').update({activo:false}).eq('activo',true).eq('pv_id',pid);
+      } else {
+        await sb.from('mermas_productos').update({activo:false}).eq('activo',true);
+      }
+    }
     for(let i=0;i<nuevos.length;i+=100){const{error}=await sb.from('mermas_productos').insert(nuevos.slice(i,i+100));if(error)throw error}
     const areasExcel=[...new Set(nuevos.map(n=>n.area))];
     const faltan=areasExcel.filter(a=>!DB.areas.some(x=>x.nombre===a));
     if(faltan.length)await sb.from('mermas_areas').insert(faltan.map(nombre=>({nombre})));
-    toast(`✅ ${nuevos.length} productos importados`+(faltan.length?` (+${faltan.length} áreas)`:''));
+    const sinRestaurante=nuevos.filter(n=>!n.pv_id).length;
+    toast(`✅ ${nuevos.length} productos importados`+(faltan.length?` (+${faltan.length} áreas)`:'')+(sinRestaurante?` — ⚠️ ${sinRestaurante} sin restaurante asignado`:''));
     cargarCatalogo();
   }catch(e){toast('Error: '+(e.message||e),true)}
 }
