@@ -198,7 +198,10 @@ select,input[type=text],input[type=url],input[type=email],input[type=time]{paddi
 <div class="screen" id="s1">
   <div class="refresh-bar">
     <h2 style="margin:0">Histórico de mermas</h2>
-    <button class="btn-refresh" onclick="cargarHistorico(true)">🔄 Actualizar</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn-refresh" onclick="cargarHistorico(true)">🔄 Actualizar</button>
+      <button class="btn-refresh" style="border-color:var(--rojo);color:var(--rojo-t)" onclick="limpiarHistorico()">🗑️ Limpiar todo</button>
+    </div>
   </div>
   <div class="filtros">
     <select id="f-pv" onchange="renderHistorico()"><option value="">Todos los puntos de venta</option></select>
@@ -670,6 +673,17 @@ function renderHistorico(){
 }
 function toggleHist(id){UI.histAbiertos.has(id)?UI.histAbiertos.delete(id):UI.histAbiertos.add(id);renderHistorico()}
 
+async function limpiarHistorico(){
+  if(!confirm('¿Borrar TODO el histórico de mermas? Esta acción no se puede deshacer.'))return;
+  if(!sb)return;
+  try{
+    const{error}=await sb.from('mermas_historico').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    if(error)throw error;
+    DB.historico=[];renderHistorico();
+    toast('Histórico borrado');
+  }catch(e){toast('Error: '+(e.message||e),true)}
+}
+
 function reexportarExcel(id){
   const h=DB.historico.find(x=>x.id===id);if(!h)return;
   const items=h.items||[];
@@ -847,4 +861,3 @@ initConexion();
 </script>
 </body>
 </html>
-
