@@ -152,8 +152,9 @@ select,input[type=text],input[type=url],input[type=email],input[type=time]{paddi
   <div class="brand">📉 Mermas PDV</div>
   <div class="tabs">
     <button class="tab active" data-t="0" onclick="goTab(0)">📝 Registrar</button>
-    <button class="tab" data-t="1" onclick="goTab(1)">📚 Histórico <span class="dot" id="dot-hist" style="display:none">!</span></button>
-    <button class="tab" data-t="2" onclick="goTab(2)">⚙️</button>
+    <button class="tab" data-t="1" onclick="goTab(1)">📒 Libreta <span class="dot" id="dot-lib" style="background:var(--morado)">0</span></button>
+    <button class="tab" data-t="2" onclick="goTab(2)">📚 Histórico</button>
+    <button class="tab" data-t="3" onclick="goTab(3)">⚙️</button>
   </div>
 </div></div>
 
@@ -184,18 +185,25 @@ select,input[type=text],input[type=url],input[type=email],input[type=time]{paddi
     <div id="prod-list"></div>
   </div>
 
-  <!-- LIBRETA -->
-  <div class="libreta" id="libreta">
-    <div class="libreta-header">
-      <div class="libreta-title">📒 Mermas anotadas <span class="libreta-count" id="lb-count">0</span></div>
-      <button class="btn-rojo-b btn-sm btn" style="width:auto;padding:6px 12px;font-size:12px" onclick="limpiarLibreta()" id="btn-limpiar" style="display:none">🗑 Limpiar</button>
-    </div>
-    <div id="libreta-body"><div class="libreta-empty">Aún no hay mermas anotadas hoy</div></div>
+
+</div>
+
+<!-- ===== PANTALLA 1: LIBRETA ===== -->
+<div class="screen" id="s1">
+  <div class="refresh-bar">
+    <h2 style="margin:0">📒 Mermas anotadas hoy</h2>
+    <button class="btn-refresh" style="border-color:var(--rojo);color:var(--rojo-t)" onclick="limpiarLibreta()">🗑️ Limpiar</button>
+  </div>
+  <div class="libreta">
+    <div id="libreta-body2"><div class="libreta-empty">Aún no hay mermas anotadas hoy</div></div>
+  </div>
+  <div style="margin-top:12px">
+    <button class="btn btn-rojo" id="btn-cierre2" onclick="confirmarCierre()" disabled>🔒 Cerrar jornada</button>
   </div>
 </div>
 
-<!-- ===== PANTALLA 1: HISTÓRICO ===== -->
-<div class="screen" id="s1">
+<!-- ===== PANTALLA 2: HISTÓRICO ===== -->
+<div class="screen" id="s2">
   <div class="refresh-bar">
     <h2 style="margin:0">Histórico de mermas</h2>
     <div style="display:flex;gap:8px">
@@ -210,8 +218,8 @@ select,input[type=text],input[type=url],input[type=email],input[type=time]{paddi
   <div id="lista-historico"></div>
 </div>
 
-<!-- ===== PANTALLA 2: AJUSTES ===== -->
-<div class="screen" id="s2">
+<!-- ===== PANTALLA 3: AJUSTES ===== -->
+<div class="screen" id="s3">
   <h2>Conexión a la base de datos</h2>
   <div class="card card-pad">
     <div class="cfg-row"><label>URL del proyecto Supabase</label><input type="url" id="cfg-url" placeholder="https://xxxxx.supabase.co"></div>
@@ -396,8 +404,10 @@ async function cargarMotivos(){
 function goTab(n){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.t==n));
   document.querySelectorAll('.screen').forEach((s,i)=>s.classList.toggle('active',i===n));
-  if(n===1)cargarHistorico();
-  if(n===0){renderRegistro();renderLibreta()}
+  if(n===2)cargarHistorico();
+  if(n===0)renderRegistro();
+  if(n===1){renderLibreta();renderLibreta2();}
+  if(n===3)renderAdmin();
 }
 
 // ---------- REGISTRO ----------
@@ -523,15 +533,9 @@ function añadirALibreta(k,prodId,nombre,area,idSap,codigo){
   toast('✅ Merma anotada');
 }
 
-function renderLibreta(){
-  const body=$('libreta-body');
-  const count=$('lb-count');
-  count.textContent=UI.libreta.length;
-  if(!UI.libreta.length){
-    body.innerHTML='<div class="libreta-empty">Aún no hay mermas anotadas hoy</div>';
-    return;
-  }
-  body.innerHTML=UI.libreta.map((it,i)=>`
+function libretaHTML(){
+  if(!UI.libreta.length)return '<div class="libreta-empty">Aún no hay mermas anotadas hoy</div>';
+  return UI.libreta.map((it,i)=>`
     <div class="libreta-row">
       <div style="flex:1;min-width:0">
         <div class="lb-nombre">${esc(it.nombre)}</div>
@@ -546,6 +550,20 @@ function renderLibreta(){
       <button class="lb-del" onclick="borrarDeLibreta(${i})" title="Eliminar">✕</button>
     </div>`).join('');
 }
+
+function renderLibreta(){
+  // actualizar dot de la pestaña
+  const dot=$('dot-lib');
+  if(dot)dot.textContent=UI.libreta.length;
+  // actualizar libreta en pestaña 1
+  const b2=$('libreta-body2');
+  if(b2)b2.innerHTML=libretaHTML();
+  // actualizar botón cerrar jornada
+  const bc2=$('btn-cierre2');
+  if(bc2)bc2.disabled=UI.libreta.length===0;
+}
+
+function renderLibreta2(){renderLibreta()}
 
 function borrarDeLibreta(i){
   UI.libreta.splice(i,1);
