@@ -276,7 +276,7 @@ select,input[type=text],input[type=url],input[type=email],input[type=time]{paddi
 <div class="overlay" id="overlay-cierre">
   <div class="modal">
     <h3>🔒 Cerrar jornada</h3>
-    <p class="muted" style="margin-bottom:14px">Se generará el Excel con todas las mermas de hoy y se enviará por correo a <span id="cierre-email-preview" style="font-weight:700;color:var(--morado)"></span>. Esta acción no se puede deshacer.</p>
+    <p class="muted" style="margin-bottom:14px">Se guardará el registro de mermas de hoy en el histórico. Podrás descargar el Excel desde ahí cuando quieras. Esta acción no se puede deshacer.</p>
     <p id="cierre-resumen" style="margin-bottom:16px;font-size:14px"></p>
     <div style="display:flex;gap:10px">
       <button class="btn btn-borde" onclick="document.getElementById('overlay-cierre').classList.remove('show')">Cancelar</button>
@@ -560,9 +560,7 @@ function limpiarLibreta(){
 function confirmarCierre(){
   if(!UI.libreta.length){toast('No hay mermas anotadas hoy',true);return}
   const pv=DB.pvs.find(p=>p.id===UI.pv);
-  const email=pv?.email||localStorage.getItem('email_global')||'(sin correo configurado)';
-  $('cierre-email-preview').textContent=email;
-  $('cierre-resumen').textContent=`Se enviarán ${UI.libreta.length} línea(s) de merma del ${new Date().toLocaleDateString('es-ES')} de ${pv?.nombre||'todos los PDV'}.`;
+  $('cierre-resumen').textContent=`Se guardarán ${UI.libreta.length} línea(s) de merma del ${new Date().toLocaleDateString('es-ES')} de ${pv?.nombre||'todos los PDV'}.`;
   $('overlay-cierre').classList.add('show');
 }
 
@@ -571,29 +569,25 @@ async function cerrarJornada(automatico=false){
   if(!UI.libreta.length){if(!automatico)toast('No hay mermas que cerrar',true);return}
   const fecha=hoyStr();
   const pv=DB.pvs.find(p=>p.id===UI.pv);
-  const email=pv?.email||localStorage.getItem('email_global')||'';
 
-  // Guardar en Supabase — Power Automate detectará esta inserción y enviará el correo con el Excel
+  // Guardar en Supabase
   try{
     if(sb){
       const{error}=await sb.from('mermas_historico').insert({
         pv_id:UI.pv,pv_nombre:pv?.nombre||'',
         fecha,items:UI.libreta,
-        email_enviado:email
+        email_enviado:pv?.email||localStorage.getItem('email_global')||''
       });
       if(error)throw error;
     }
   }catch(e){toast('Error guardando: '+(e.message||e),true);return}
-
-  // Generar y descargar Excel localmente como respaldo
-  generarExcelLocal(UI.libreta, pv?.nombre||'PDV', fecha);
 
   // Limpiar libreta
   UI.libreta=[];
   localStorage.removeItem('mermas_libreta_'+fecha);
   renderLibreta();
   cargarHistorico();
-  toast(automatico?'⏰ Jornada cerrada — Excel enviado por Power Automate':'✅ Jornada cerrada — Excel enviado por correo');
+  toast(automatico?'⏰ Jornada cerrada automáticamente':'✅ Jornada cerrada y guardada en el histórico');
   programarCierre();
 }
 
