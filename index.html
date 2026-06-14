@@ -267,6 +267,7 @@ select,input[type=text],input[type=url],input[type=email],input[type=time]{paddi
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn btn-borde btn-sm" onclick="document.getElementById('excel-input').click()">📥 Importar Excel (añadir)</button>
       <button class="btn btn-rojo-b btn-sm" onclick="reemplazarCatalogo()">🔄 Importar Excel (reemplazar)</button>
+      <button class="btn btn-rojo-b btn-sm" onclick="limpiarCatalogo()">🗑️ Vaciar catálogo</button>
     </div>
     <p class="muted" style="margin-top:8px" id="prod-count"></p>
   </div>
@@ -821,6 +822,19 @@ async function borrarArea(id,nombre){
 }
 
 // ---------- EXCEL ----------
+async function limpiarCatalogo(){
+  if(!confirm('¿Borrar TODOS los productos del catálogo? Las áreas y restaurantes se conservan.'))return;
+  if(!confirm('Segunda confirmación — esta acción no se puede deshacer. ¿Continuar?'))return;
+  if(!sb)return;
+  try{
+    const{error}=await sb.from('mermas_productos').delete().neq('id','00000000-0000-0000-0000-000000000000');
+    if(error)throw error;
+    DB.productos=[];DB.todosProductos=[];
+    renderRegistro();renderAdmin();
+    toast('✅ Catálogo vaciado — ya puedes importar de nuevo');
+  }catch(e){toast('Error: '+(e.message||e),true)}
+}
+
 function reemplazarCatalogo(){
   if(!confirm('¿Reemplazar todo el catálogo?'))return;
   UI.modoReemplazo=true;$('excel-input').click();
@@ -900,4 +914,3 @@ initConexion();
 </script>
 </body>
 </html>
-
