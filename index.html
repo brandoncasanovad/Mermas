@@ -367,6 +367,11 @@ async function cargarCatalogo(){
 async function cargarHistorico(manual){
   if(!sb)return;
   try{
+    // Limpiar registros con más de 8 días automáticamente
+    const limite=new Date();limite.setDate(limite.getDate()-8);
+    const limiteStr=limite.toISOString().slice(0,10);
+    await sb.from('mermas_historico').delete().lt('fecha',limiteStr);
+
     const{data,error}=await sb.from('mermas_historico').select('*').order('creado',{ascending:false}).limit(200);
     if(error)throw error;
     DB.historico=data||[];renderHistorico();
@@ -661,8 +666,9 @@ function renderHistorico(){
             <tbody>${filas}</tbody>
           </table>
         </div>
-        <div style="margin-top:10px">
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-borde btn-sm" onclick="reexportarExcel('${h.id}')">📥 Descargar Excel</button>
+          <button class="btn btn-borde btn-sm" style="border-color:var(--morado);color:var(--morado)" onclick="enviarPorCorreo('${h.id}')">📧 Enviar por correo</button>
         </div>
       </div>
     </div>`;
@@ -689,6 +695,37 @@ function reexportarExcel(id){
   const blob=new Blob([Uint8Array.from(atob(b64),c=>c.charCodeAt(0))],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=`Mermas_${h.pv_nombre.replace(/\s+/g,'_')}_${fd}.xlsx`;a.click();URL.revokeObjectURL(url);
+}
+
+function enviarPorCorreo(id){
+  const h=DB.historico.find(x=>x.id===id);if(!h)return;
+  const items=h.items||[];
+  const fd=h.fecha||h.creado?.slice(0,10)||'';
+  // Generar Excel y descargarlo
+  const wb=XLSX.utils.book_new();
+  const wsData=[
+    [h.pv_nombre+' — Registro de Mermas — '+fd],
+    [],
+    ['ID SAP','Código Producto','Producto','Área','Cantidad','Formato','Código Motivo','Motivo'],
+    ...items.map(it=>[it.idSap||'',it.codigo||'',it.nombre,it.area,it.cantidad,it.formato,it.codMotivo||'',it.motivoDesc||''])
+  ];
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}}];
+  ws['!cols']=[{wch:14},{wch:16},{wch:38},{wch:18},{wch:10},{wch:14},{wch:14},{wch:28}];
+  XLSX.utils.book_append_sheet(wb,ws,'Mermas');
+  const b64=XLSX.write(wb,{bookType:'xlsx',type:'base64'});
+  const blob=new Blob([Uint8Array.from(atob(b64),c=>c.charCodeAt(0))],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`Mermas_${h.pv_nombre.replace(/\s+/g,'_')}_${fd}.xlsx`;
+  a.click();URL.revokeObjectURL(url);
+  // Abrir cliente de correo con destinatario y asunto prellenados
+  const email=h.email_enviado||localStorage.getItem('email_global')||'';
+  const asunto=encodeURIComponent(`Mermas ${h.pv_nombre} — ${fd}`);
+  const cuerpo=encodeURIComponent(`Adjunto el registro de mermas de ${h.pv_nombre} del día ${fd}.\n\nEl Excel se ha descargado automáticamente, adjúntalo a este correo.`);
+  setTimeout(()=>{window.location.href=`mailto:${email}?subject=${asunto}&body=${cuerpo}`;},800);
+  toast('📧 Abriendo correo… adjunta el Excel descargado');
 }
 
 // ---------- ADMIN ----------
