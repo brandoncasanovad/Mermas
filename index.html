@@ -891,7 +891,7 @@ async function importarExcel(ev){
     const faltanGlobal=sinPVUnicas.filter(a=>!DB.areas.some(x=>x.nombre===a&&!x.pv_id));
     if(faltanGlobal.length)await sb.from('mermas_areas').insert(faltanGlobal.map(nombre=>({nombre})));
     const sinRestaurante=nuevos.filter(n=>!n.pv_id).length;
-    toast(`✅ ${nuevos.length} productos importados`+(faltan.length?` (+${faltan.length} áreas)`:'')+(sinRestaurante?` — ⚠️ ${sinRestaurante} sin restaurante asignado`:''));
+    toast(`✅ ${nuevos.length} productos importados`+(sinRestaurante?` — ⚠️ ${sinRestaurante} sin restaurante asignado`:''));
     cargarCatalogo();
   }catch(e){toast('Error: '+(e.message||e),true)}
 }
