@@ -316,6 +316,7 @@ function toast(msg,err){const t=$('toast');t.textContent=msg;t.classList.toggle(
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fechaES(iso){const d=new Date(iso);return d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}
 function hoyStr(){return new Date().toISOString().slice(0,10)}
+function lbKey(){return 'mermas_libreta_'+(UI.pv||'global')+'_'+hoyStr()}
 
 // ---------- CONEXIÓN ----------
 function initConexion(){
@@ -323,8 +324,7 @@ function initConexion(){
   if(url&&key){sb=supabase.createClient(url,key);$('cfg-url').value=url;$('cfg-key').value=key;$('cfg-estado').textContent='✅ Conectado a '+url;cargarTodo()}
   else{$('overlay-conexion').classList.add('show')}
   // restaurar libreta del día
-  const lb=localStorage.getItem('mermas_libreta_'+hoyStr());
-  if(lb)try{UI.libreta=JSON.parse(lb)}catch(e){}
+  // la libreta se carga al seleccionar restaurante en seleccionarPV()
   // hora cierre
   const hc=localStorage.getItem('hora_cierre')||'23:59';
   $('cfg-hora-cierre').value=hc;
@@ -424,7 +424,12 @@ function seleccionarPV(id){
   if(DB.todosProductos)DB.productos=DB.todosProductos.filter(p=>!p.pv_id||p.pv_id===id);
   if(DB.areas.length)UI.area=DB.areas[0].nombre;
   if($('buscador'))$('buscador').value='';
+  // cargar libreta específica de este restaurante
+  const lb=localStorage.getItem(lbKey());
+  UI.libreta=lb?JSON.parse(lb):[];
+  UI.cant={};UI.fmt={};UI.fmtLibre={};UI.codMotivo={};
   renderRegistro();
+  renderLibreta();
 }
 
 function renderRegistro(){
@@ -532,7 +537,7 @@ function añadirALibreta(k,prodId,nombre,area,idSap,codigo){
   if(UI.codMotivo)UI.codMotivo[k]='';
   const el=$('q_'+k);if(el)el.textContent=0;
   // guardar en localStorage
-  localStorage.setItem('mermas_libreta_'+hoyStr(),JSON.stringify(UI.libreta));
+  localStorage.setItem(lbKey(),JSON.stringify(UI.libreta));
   renderLibreta();renderProductos();
   toast('✅ Merma anotada');
 }
@@ -571,13 +576,13 @@ function renderLibreta2(){renderLibreta()}
 
 function borrarDeLibreta(i){
   UI.libreta.splice(i,1);
-  localStorage.setItem('mermas_libreta_'+hoyStr(),JSON.stringify(UI.libreta));
+  localStorage.setItem(lbKey(),JSON.stringify(UI.libreta));
   renderLibreta();
 }
 function limpiarLibreta(){
   if(!confirm('¿Borrar todas las mermas anotadas?'))return;
   UI.libreta=[];
-  localStorage.removeItem('mermas_libreta_'+hoyStr());
+  localStorage.removeItem(lbKey());
   renderLibreta();
 }
 
@@ -609,7 +614,7 @@ async function cerrarJornada(automatico=false){
 
   // Limpiar libreta
   UI.libreta=[];
-  localStorage.removeItem('mermas_libreta_'+fecha);
+  localStorage.removeItem('mermas_libreta_'+(UI.pv||'global')+'_'+fecha);
   renderLibreta();
   cargarHistorico();
   toast(automatico?'⏰ Jornada cerrada automáticamente':'✅ Jornada cerrada y guardada en el histórico');
@@ -914,3 +919,4 @@ initConexion();
 </script>
 </body>
 </html>
+
