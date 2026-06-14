@@ -883,13 +883,13 @@ async function importarExcel(ev){
       const areasExistentes=await sb.from('mermas_areas').select('nombre').eq('pv_id',pvId);
       const nombresExistentes=(areasExistentes.data||[]).map(a=>a.nombre);
       const faltanPV=areasUnicas.filter(a=>!nombresExistentes.includes(a));
-      if(faltanPV.length)await sb.from('mermas_areas').insert(faltanPV.map(nombre=>({nombre,pv_id:pvId})));
+      if(faltanPV.length)await sb.from('mermas_areas').upsert(faltanPV.map(nombre=>({nombre,pv_id:pvId})),{onConflict:'nombre,pv_id',ignoreDuplicates:true});
     }
     // áreas sin restaurante asignado
     const sinPV=nuevos.filter(n=>!n.pv_id).map(n=>n.area);
     const sinPVUnicas=[...new Set(sinPV)];
     const faltanGlobal=sinPVUnicas.filter(a=>!DB.areas.some(x=>x.nombre===a&&!x.pv_id));
-    if(faltanGlobal.length)await sb.from('mermas_areas').insert(faltanGlobal.map(nombre=>({nombre})));
+    if(faltanGlobal.length)await sb.from('mermas_areas').upsert(faltanGlobal.map(nombre=>({nombre,pv_id:null})),{onConflict:'nombre,pv_id',ignoreDuplicates:true});
     const sinRestaurante=nuevos.filter(n=>!n.pv_id).length;
     toast(`✅ ${nuevos.length} productos importados`+(sinRestaurante?` — ⚠️ ${sinRestaurante} sin restaurante asignado`:''));
     cargarCatalogo();
@@ -900,3 +900,4 @@ initConexion();
 </script>
 </body>
 </html>
+
