@@ -376,10 +376,9 @@ async function cargarCatalogo(){
     DB.areas=DB.todasAreas.filter(a=>!a.pv_id||a.pv_id===UI.pv);
     DB.productos=DB.todosProductos.filter(p=>!p.pv_id||p.pv_id===UI.pv);
     if(!UI.area&&DB.areas.length)UI.area=DB.areas[0].nombre;
-    // cargar libreta del restaurante activo
-    const lb=localStorage.getItem(lbKey());
-    UI.libreta=lb?JSON.parse(lb):[];
-    renderRegistro();renderAdmin();renderLibreta();
+    renderRegistro();renderAdmin();
+    // cargar libreta desde Supabase
+    await cargarLibretaTemp();
   }catch(e){toast('Error cargando: '+(e.message||e),true)}
 }
 async function cargarHistorico(manual){
@@ -407,13 +406,34 @@ async function cargarMotivos(){
   }catch(e){}
 }
 
+async function cargarLibretaTemp(){
+  if(!sb||!UI.pv)return;
+  try{
+    const{data,error}=await sb.from('mermas_libreta_temp')
+      .select('*').eq('pv_id',UI.pv).eq('fecha',hoyStr()).order('creado',{ascending:true});
+    if(error)throw error;
+    UI.libreta=(data||[]).map(r=>({
+      id:r.id,
+      pvId:r.pv_id,pvNombre:r.pv_nombre,
+      prodId:r.prod_id,nombre:r.nombre,area:r.area,
+      idSap:r.id_sap,codigo:r.codigo,
+      cantidad:r.cantidad,formato:r.formato,
+      codMotivo:r.cod_motivo,motivoDesc:r.motivo_desc,
+      hora:r.hora
+    }));
+    renderLibreta();
+  }catch(e){console.error('Error cargando libreta:',e)}
+}
+
 // ---------- NAV ----------
+let libretaTimer=null;
 function goTab(n){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.t==n));
   document.querySelectorAll('.screen').forEach((s,i)=>s.classList.toggle('active',i===n));
+  clearInterval(libretaTimer);
   if(n===2)cargarHistorico();
   if(n===0)renderRegistro();
-  if(n===1){renderLibreta();renderLibreta2();}
+  if(n===1){cargarLibretaTemp();libretaTimer=setInterval(cargarLibretaTemp,15000);}
   if(n===3)renderAdmin();
 }
 
@@ -428,12 +448,11 @@ function seleccionarPV(id){
   if(DB.todosProductos)DB.productos=DB.todosProductos.filter(p=>!p.pv_id||p.pv_id===id);
   if(DB.areas.length)UI.area=DB.areas[0].nombre;
   if($('buscador'))$('buscador').value='';
-  // cargar libreta específica de este restaurante
-  const lb=localStorage.getItem(lbKey());
-  UI.libreta=lb?JSON.parse(lb):[];
   UI.cant={};UI.fmt={};UI.fmtLibre={};UI.codMotivo={};
+  UI.libreta=[];
   renderRegistro();
-  renderLibreta();
+  // cargar libreta desde Supabase
+  await cargarLibretaTemp();
 }
 
 function renderRegistro(){
@@ -528,20 +547,28 @@ function añadirALibreta(k,prodId,nombre,area,idSap,codigo){
   const codMotivo=(UI.codMotivo?.[k])||'';
   const motivoDesc=codMotivo&&DB.motivos[codMotivo]?DB.motivos[codMotivo]:'';
   const pv=DB.pvs.find(p=>p.id===UI.pv);
-  UI.libreta.push({
-    id:Date.now()+'_'+Math.random().toString(36).slice(2),
-    pvId:UI.pv,pvNombre:pv?.nombre||'',
-    prodId,nombre,area,idSap,codigo,
-    cantidad:q,formato:fmt,
-    codMotivo,motivoDesc,
-    hora:new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})
-  });
-  // reset
+  const hora=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  try{
+    const{data,error}=await sb.from('mermas_libreta_temp').insert({
+      pv_id:UI.pv,pv_nombre:pv?.nombre||'',
+      fecha:hoyStr(),
+      prod_id:prodId,nombre,area,
+      id_sap:idSap||null,codigo:codigo||null,
+      cantidad:q,formato:fmt,
+      cod_motivo:codMotivo||null,motivo_desc:motivoDesc||null,
+      hora
+    }).select().single();
+    if(error)throw error;
+    UI.libreta.push({
+      id:data.id,pvId:UI.pv,pvNombre:pv?.nombre||'',
+      prodId,nombre,area,idSap,codigo,
+      cantidad:q,formato:fmt,codMotivo,motivoDesc,hora
+    });
+  }catch(e){toast('Error guardando merma: '+(e.message||e),true);return}
+  // reset controles
   UI.cant[k]=0;
   if(UI.codMotivo)UI.codMotivo[k]='';
   const el=$('q_'+k);if(el)el.textContent=0;
-  // guardar en localStorage
-  localStorage.setItem(lbKey(),JSON.stringify(UI.libreta));
   renderLibreta();renderProductos();
   toast('✅ Merma anotada');
 }
@@ -578,15 +605,20 @@ function renderLibreta(){
 
 function renderLibreta2(){renderLibreta()}
 
-function borrarDeLibreta(i){
+async function borrarDeLibreta(i){
+  const item=UI.libreta[i];if(!item)return;
+  try{
+    if(sb&&item.id){await sb.from('mermas_libreta_temp').delete().eq('id',item.id)}
+  }catch(e){console.error(e)}
   UI.libreta.splice(i,1);
-  localStorage.setItem(lbKey(),JSON.stringify(UI.libreta));
   renderLibreta();
 }
-function limpiarLibreta(){
-  if(!confirm('¿Borrar todas las mermas anotadas?'))return;
+async function limpiarLibreta(){
+  if(!confirm('¿Borrar todas las mermas anotadas hoy?'))return;
+  try{
+    if(sb&&UI.pv)await sb.from('mermas_libreta_temp').delete().eq('pv_id',UI.pv).eq('fecha',hoyStr());
+  }catch(e){console.error(e)}
   UI.libreta=[];
-  localStorage.removeItem(lbKey());
   renderLibreta();
 }
 
@@ -616,9 +648,11 @@ async function cerrarJornada(automatico=false){
     }
   }catch(e){toast('Error guardando: '+(e.message||e),true);return}
 
-  // Limpiar libreta
+  // Limpiar libreta temporal en Supabase y local
+  try{
+    if(sb&&UI.pv)await sb.from('mermas_libreta_temp').delete().eq('pv_id',UI.pv).eq('fecha',fecha);
+  }catch(e){console.error(e)}
   UI.libreta=[];
-  localStorage.removeItem('mermas_libreta_'+(UI.pv||'global')+'_'+fecha);
   renderLibreta();
   cargarHistorico();
   toast(automatico?'⏰ Jornada cerrada automáticamente':'✅ Jornada cerrada y guardada en el histórico');
