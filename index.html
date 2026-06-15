@@ -440,7 +440,7 @@ function goTab(n){
 // ---------- REGISTRO ----------
 function getFormatos(prod){return(prod.formatos&&prod.formatos.length)?prod.formatos:FORMATOS_DEFAULT}
 
-function seleccionarPV(id){
+async function seleccionarPV(id){
   UI.pv=id;
   UI.area=null;
   // refiltar áreas y productos para este PDV
