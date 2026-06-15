@@ -370,12 +370,16 @@ async function cargarCatalogo(){
     ]);
     if(pvs.error||areas.error||prods.error)throw(pvs.error||areas.error||prods.error);
     DB.pvs=pvs.data;DB.todasAreas=areas.data;DB.todosProductos=prods.data;
+    // asignar PV por defecto ANTES de filtrar
+    if(!UI.pv&&DB.pvs.length)UI.pv=DB.pvs[0].id;
     // filtrar áreas y productos del PDV seleccionado
     DB.areas=DB.todasAreas.filter(a=>!a.pv_id||a.pv_id===UI.pv);
     DB.productos=DB.todosProductos.filter(p=>!p.pv_id||p.pv_id===UI.pv);
-    if(!UI.pv&&DB.pvs.length)UI.pv=DB.pvs[0].id;
     if(!UI.area&&DB.areas.length)UI.area=DB.areas[0].nombre;
-    renderRegistro();renderAdmin();
+    // cargar libreta del restaurante activo
+    const lb=localStorage.getItem(lbKey());
+    UI.libreta=lb?JSON.parse(lb):[];
+    renderRegistro();renderAdmin();renderLibreta();
   }catch(e){toast('Error cargando: '+(e.message||e),true)}
 }
 async function cargarHistorico(manual){
@@ -919,4 +923,3 @@ initConexion();
 </script>
 </body>
 </html>
-
