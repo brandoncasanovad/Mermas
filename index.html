@@ -539,7 +539,7 @@ function camb(k,d){
   const btn=$('add_'+k);if(btn)btn.disabled=UI.cant[k]===0;
 }
 
-function añadirALibreta(k,prodId,nombre,area,idSap,codigo){
+async function añadirALibreta(k,prodId,nombre,area,idSap,codigo){
   const q=UI.cant[k]||0;if(q<=0)return;
   const fmts=DB.productos.find(p=>p.id===prodId)?getFormatos(DB.productos.find(p=>p.id===prodId)):FORMATOS_DEFAULT;
   const fmtVal=(UI.fmt?.[k])||fmts[0];
