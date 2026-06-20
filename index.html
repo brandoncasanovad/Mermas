@@ -326,36 +326,38 @@ function lbKey(){return 'mermas_libreta_'+(UI.pv||'global')+'_'+hoyStr()}
 
 // ---------- CONEXIÓN ----------
 function initConexion(){
-  const url=localStorage.getItem('sb_url'),key=localStorage.getItem('sb_key');
+  const url=localStorage.getItem('mermas_sb_url'),key=localStorage.getItem('mermas_sb_key');
   if(url&&key){sb=supabase.createClient(url,key);$('cfg-url').value=url;$('cfg-key').value=key;$('cfg-estado').textContent='✅ Conectado a '+url;cargarTodo()}
   else{$('overlay-conexion').classList.add('show')}
   // restaurar libreta del día
   // la libreta se carga al seleccionar restaurante en seleccionarPV()
   // hora cierre
-  const hc=localStorage.getItem('hora_cierre')||'23:59';
+  const hc=localStorage.getItem('mermas_hora_cierre')||'23:59';
   $('cfg-hora-cierre').value=hc;
-  const eg=localStorage.getItem('email_global')||'';
+  const eg=localStorage.getItem('mermas_email_global')||'';
   $('cfg-email-global').value=eg;
   programarCierre();
   $('cierre-info-txt').textContent='Cierre automático a las '+hc;
 }
 function conectar(url,key){
   if(!url||!key){toast('Completa URL y clave',true);return}
-  localStorage.setItem('sb_url',url.trim());localStorage.setItem('sb_key',key.trim());
-  sb=supabase.createClient(url.trim(),key.trim());
+  url=url.trim().replace(/\/rest\/v1\/?$/,'').replace(/\/+$/,'');
+  key=key.trim();
+  localStorage.setItem('mermas_sb_url',url);localStorage.setItem('mermas_sb_key',key);
+  sb=supabase.createClient(url,key);
   $('overlay-conexion').classList.remove('show');
-  $('cfg-url').value=url.trim();$('cfg-key').value=key.trim();
-  $('cfg-estado').textContent='✅ Conectado a '+url.trim();
+  $('cfg-url').value=url;$('cfg-key').value=key;
+  $('cfg-estado').textContent='✅ Conectado a '+url;
   toast('Conectado');cargarTodo();
 }
 function conectarDesdeModal(){conectar($('m-url').value,$('m-key').value)}
 function guardarConexion(){conectar($('cfg-url').value,$('cfg-key').value)}
-function guardarHoraCierre(){localStorage.setItem('hora_cierre',$('cfg-hora-cierre').value);programarCierre();$('cierre-info-txt').textContent='Cierre automático a las '+$('cfg-hora-cierre').value;toast('Hora de cierre guardada')}
-function guardarEmailGlobal(){localStorage.setItem('email_global',$('cfg-email-global').value);toast('Correo guardado')}
+function guardarHoraCierre(){localStorage.setItem('mermas_hora_cierre',$('cfg-hora-cierre').value);programarCierre();$('cierre-info-txt').textContent='Cierre automático a las '+$('cfg-hora-cierre').value;toast('Hora de cierre guardada')}
+function guardarEmailGlobal(){localStorage.setItem('mermas_email_global',$('cfg-email-global').value);toast('Correo guardado')}
 
 function programarCierre(){
   clearTimeout(cierreTimer);
-  const hc=(localStorage.getItem('hora_cierre')||'23:59').split(':');
+  const hc=(localStorage.getItem('mermas_hora_cierre')||'23:59').split(':');
   const ahora=new Date();
   const objetivo=new Date();
   objetivo.setHours(parseInt(hc[0]),parseInt(hc[1]),0,0);
@@ -671,7 +673,7 @@ async function cerrarJornada(automatico=false){
       const{error}=await sb.from('mermas_historico').insert({
         pv_id:UI.pv,pv_nombre:pv?.nombre||'',
         fecha,items:UI.libreta,
-        email_enviado:pv?.email||localStorage.getItem('email_global')||''
+        email_enviado:pv?.email||localStorage.getItem('mermas_email_global')||''
       });
       if(error)throw error;
     }
@@ -823,7 +825,7 @@ function enviarPorCorreo(id){
   a.download=`Mermas_${h.pv_nombre.replace(/\s+/g,'_')}_${fd}.xlsx`;
   a.click();URL.revokeObjectURL(url);
   // Abrir cliente de correo con destinatario y asunto prellenados
-  const email=h.email_enviado||localStorage.getItem('email_global')||'';
+  const email=h.email_enviado||localStorage.getItem('mermas_email_global')||'';
   const asunto=encodeURIComponent(`Mermas ${h.pv_nombre} — ${fd}`);
   const cuerpo=encodeURIComponent(`Adjunto el registro de mermas de ${h.pv_nombre} del día ${fd}.\n\nEl Excel se ha descargado automáticamente, adjúntalo a este correo.`);
   setTimeout(()=>{window.location.href=`mailto:${email}?subject=${asunto}&body=${cuerpo}`;},800);
