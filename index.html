@@ -367,7 +367,56 @@ function programarCierre(){
 }
 
 // ---------- CARGA ----------
-async function cargarTodo(){await Promise.all([cargarCatalogo(),cargarHistorico(),cargarMotivos()])}
+async function cargarTodo(){
+  await cargarPvsPrevio();
+  await cerrarJornadasAtrasadas();
+  await Promise.all([cargarCatalogo(),cargarHistorico(),cargarMotivos()]);
+}
+async function cargarPvsPrevio(){
+  if(!sb)return;
+  try{
+    const{data,error}=await sb.from('mermas_pvs').select('*').eq('activo',true).order('nombre');
+    if(error)throw error;
+    DB.pvs=data;
+  }catch(e){console.error('Error precargando PVs:',e)}
+}
+async function cerrarJornadasAtrasadas(){
+  if(!sb)return;
+  try{
+    const hoy=hoyStr();
+    // buscar cualquier línea en libreta_temp de un día anterior a hoy, de cualquier PDV
+    const{data,error}=await sb.from('mermas_libreta_temp').select('*').lt('fecha',hoy);
+    if(error)throw error;
+    if(!data||!data.length)return;
+    // agrupar por pv_id + fecha
+    const grupos={};
+    data.forEach(r=>{
+      const k=r.pv_id+'|'+r.fecha;
+      if(!grupos[k])grupos[k]={pv_id:r.pv_id,pv_nombre:r.pv_nombre,fecha:r.fecha,items:[]};
+      grupos[k].items.push({
+        id:r.id,pvId:r.pv_id,pvNombre:r.pv_nombre,
+        prodId:r.prod_id,nombre:r.nombre,area:r.area,
+        idSap:r.id_sap,codigo:r.codigo,
+        cantidad:r.cantidad,formato:r.formato,
+        codMotivo:r.cod_motivo,motivoDesc:r.motivo_desc,hora:r.hora
+      });
+    });
+    for(const k in grupos){
+      const g=grupos[k];
+      const pv=DB.pvs?.find(p=>p.id===g.pv_id);
+      try{
+        const{error:errIns}=await sb.from('mermas_historico').insert({
+          pv_id:g.pv_id,pv_nombre:g.pv_nombre||pv?.nombre||'',
+          fecha:g.fecha,items:g.items,
+          email_enviado:pv?.email||localStorage.getItem('mermas_email_global')||''
+        });
+        if(errIns)throw errIns;
+        await sb.from('mermas_libreta_temp').delete().eq('pv_id',g.pv_id).eq('fecha',g.fecha);
+      }catch(e){console.error('Error cerrando jornada atrasada de',g.pv_nombre,g.fecha,e)}
+    }
+    toast('⏰ Se cerraron jornadas pendientes de días anteriores');
+  }catch(e){console.error('Error revisando jornadas atrasadas:',e)}
+}
 async function cargarCatalogo(){
   if(!sb)return;
   try{
@@ -661,9 +710,42 @@ function confirmarCierre(){
   $('overlay-cierre').classList.add('show');
 }
 
+async function cerrarJornadaAutomaticaTodos(){
+  if(!sb||!DB.pvs||!DB.pvs.length)return;
+  const fecha=hoyStr();
+  for(const pv of DB.pvs){
+    try{
+      const{data,error}=await sb.from('mermas_libreta_temp')
+        .select('*').eq('pv_id',pv.id).eq('fecha',fecha).order('creado',{ascending:true});
+      if(error)throw error;
+      if(!data||!data.length)continue;
+      const items=data.map(r=>({
+        id:r.id,pvId:r.pv_id,pvNombre:r.pv_nombre,
+        prodId:r.prod_id,nombre:r.nombre,area:r.area,
+        idSap:r.id_sap,codigo:r.codigo,
+        cantidad:r.cantidad,formato:r.formato,
+        codMotivo:r.cod_motivo,motivoDesc:r.motivo_desc,hora:r.hora
+      }));
+      const{error:errIns}=await sb.from('mermas_historico').insert({
+        pv_id:pv.id,pv_nombre:pv.nombre||'',
+        fecha,items,
+        email_enviado:pv.email||localStorage.getItem('mermas_email_global')||''
+      });
+      if(errIns)throw errIns;
+      await sb.from('mermas_libreta_temp').delete().eq('pv_id',pv.id).eq('fecha',fecha);
+    }catch(e){console.error('Error cerrando jornada automática de',pv.nombre,e)}
+  }
+  // si el PDV activo en esta tablet fue cerrado, refrescar su vista
+  if(UI.pv){UI.libreta=[];renderLibreta();}
+  cargarHistorico();
+  toast('⏰ Jornadas cerradas automáticamente');
+  programarCierre();
+}
+
 async function cerrarJornada(automatico=false){
   $('overlay-cierre').classList.remove('show');
-  if(!UI.libreta.length){if(!automatico)toast('No hay mermas que cerrar',true);return}
+  if(automatico)return cerrarJornadaAutomaticaTodos();
+  if(!UI.libreta.length){toast('No hay mermas que cerrar',true);return}
   const fecha=hoyStr();
   const pv=DB.pvs.find(p=>p.id===UI.pv);
 
@@ -686,7 +768,7 @@ async function cerrarJornada(automatico=false){
   UI.libreta=[];
   renderLibreta();
   cargarHistorico();
-  toast(automatico?'⏰ Jornada cerrada automáticamente':'✅ Jornada cerrada y guardada en el histórico');
+  toast('✅ Jornada cerrada y guardada en el histórico');
   programarCierre();
 }
 
@@ -988,4 +1070,3 @@ initConexion();
 </script>
 </body>
 </html>
-
