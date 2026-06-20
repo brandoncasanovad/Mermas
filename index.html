@@ -315,7 +315,13 @@ function $(id){return document.getElementById(id)}
 function toast(msg,err){const t=$('toast');t.textContent=msg;t.classList.toggle('error',!!err);t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3200)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fechaES(iso){const d=new Date(iso);return d.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}
-function hoyStr(){return new Date().toISOString().slice(0,10)}
+function hoyStr(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function lbKey(){return 'mermas_libreta_'+(UI.pv||'global')+'_'+hoyStr()}
 
 // ---------- CONEXIÓN ----------
@@ -422,7 +428,10 @@ async function cargarLibretaTemp(){
       hora:r.hora
     }));
     renderLibreta();
-  }catch(e){console.error('Error cargando libreta:',e)}
+  }catch(e){
+    console.error('Error cargando libreta:',e);
+    toast('Sin conexión, no se actualizó la libreta',true);
+  }
 }
 
 // ---------- NAV ----------
@@ -507,7 +516,7 @@ function renderProductos(){
         <input class="fmt-libre ${isLibre?'show':''}" id="fl_${k}" type="text" placeholder="Formato" value="${isLibre?esc(UI.fmtLibre?.[k]||''):''}" oninput="if(!UI.fmtLibre)UI.fmtLibre={};UI.fmtLibre['${k}']=this.value">
         <div class="qty">
           <button class="qbtn" onclick="camb('${k}',-1)">−</button>
-          <input class="qval" id="q_${k}" type="text" inputmode="decimal" value="${q||''}" placeholder="0" oninput="setCantidad('${k}',this.value)" onfocus="if(this.value==='0')this.value=''" onblur="if(!this.value)this.value='0'">
+          <input class="qval" id="q_${k}" type="text" inputmode="decimal" pattern="[0-9.,]*" value="${q||''}" placeholder="0" oninput="this.value=limpiarCant(this.value);setCantidad('${k}',this.value)" onfocus="if(this.value==='0')this.value=''" onblur="if(!this.value)this.value='0'">
           <button class="qbtn" onclick="camb('${k}',1)">+</button>
         </div>
         <button class="btn-add" onclick="añadirALibreta('${k}','${esc(p.id)}','${esc(p.nombre)}','${esc(p.area)}','${esc(p.id_sap||'')}','${esc(p.codigo||'')}')" ${q===0?'disabled':''} id="add_${k}">+ Anotar</button>
@@ -531,6 +540,15 @@ function cambCod(k,val){
   if(!UI.codMotivo)UI.codMotivo={};
   UI.codMotivo[k]=val;
   renderProductos();
+}
+function limpiarCant(v){
+  // permite dígitos y un único separador decimal (, o .)
+  let s=String(v).replace(/[^0-9.,]/g,'');
+  const first=s.search(/[.,]/);
+  if(first!==-1){
+    s=s.slice(0,first+1)+s.slice(first+1).replace(/[.,]/g,'');
+  }
+  return s;
 }
 function parseCant(v){
   const n=parseFloat(String(v).replace(',','.'));
